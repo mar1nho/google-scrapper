@@ -1,5 +1,6 @@
 from time import sleep
 import pandas as pd
+import matplotlib.pyplot as plt
 from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter
 from openpyxl.styles import Font
@@ -26,6 +27,7 @@ def formatar_preco(preco_str):
     except:
         return float('inf')
 
+
 def rolar_ate_o_fim(driver, pausas=3, intervalo=1.5):
     from selenium.webdriver.common.action_chains import ActionChains
     from selenium.webdriver.common.keys import Keys
@@ -44,11 +46,14 @@ def raspar_dados_google_shopping(query):
         driver.get(search_link)
         sleep(5)
 
-        for pagina in range(2):  # Coleta duas páginas
+        for pagina in range(2):
             print(f"\n📄 Página {pagina + 1}")
             rolar_ate_o_fim(driver, pausas=5, intervalo=1.5)
             sleep(3)
+
             products = driver.find_elements(By.CSS_SELECTOR, "div.sh-dgr__grid-result")
+            if not products:
+                print("⚠️ Nenhum produto encontrado nesta página.")
 
             for produto in products:
                 try:
@@ -86,12 +91,11 @@ def raspar_dados_google_shopping(query):
                 products_list.append(_product)
 
             try:
-                next_btn = driver.find_element(By.CSS_SELECTOR, "a.fl[aria-label='Page 2']")
+                next_btn = driver.find_element(By.CSS_SELECTOR, f"a.fl[aria-label='Page {pagina + 2}']")
                 next_btn.click()
+                sleep(3)
             except:
-                print("⚠️ Botão 'Próxima' não encontrado. Parando por aqui.")
-                break
-
+                print("⚠️ Botão 'Próxima' não encontrado ou indisponível. Parando aqui.")
 
 
     finally:
@@ -143,9 +147,13 @@ def salvar_em_excel(produtos, nome_arquivo):
     print(f"✅ Planilha criada com sucesso: {arquivo_excel}")
 
 
-def main():
+def _search_scrapper():
     query = input("Digite o que deseja pesquisar no Google Shopping: ")
     produtos = raspar_dados_google_shopping(query)
+
+    if not produtos:
+        print("Nenhum produto encontrado, operação cancelada.")
+        return
 
     for product in produtos:
         product['preco_num'] = formatar_preco(product.get('preco', ''))
@@ -153,9 +161,51 @@ def main():
     produtos.sort(key=lambda x: x['preco_num'])
 
     exibir_produtos_ordenados(produtos)
-
+    plot_lojas_com_mais_resultados(produtos)
     nome_arquivo = input("Digite o nome do arquivo para salvar: ")
-    salvar_em_excel(produtos, nome_arquivo)
+    if nome_arquivo.strip():
+        salvar_em_excel(produtos, nome_arquivo)
+    else:
+        print("Nome de arquivo não fornecido. Salvamento cancelado.")
+
+
+def plot_lojas_com_mais_resultados(produtos):
+    lojas = {}
+    for produto in produtos:
+        loja = produto['loja']
+        if loja in lojas:
+            lojas[loja] += 1
+        else:
+            lojas[loja] = 1
+
+    lojas = dict(sorted(lojas.items(), key=lambda item: item[1], reverse=True)[:10])
+
+    plt.figure(figsize=(12, 8))
+    plt.barh(list(lojas.keys())[::-1], list(lojas.values())[::-1])
+    plt.xlabel('Quantidade de Resultados')
+    plt.title('Lojas com Mais Resultados no Google Shopping')
+    plt.tight_layout()
+    plt.savefig('output.png')
+
+
+def main():
+    while True:
+        print(''' 
+         _______
+        |.-----.|
+        ||x . x||
+        ||_.-._||
+        `--)-(--`
+       __[=== o]___
+      |:::::::::::|
+         ''')
+        print("1 - Realizar Busca")
+        print("2 - Sair")
+        _response = input("Escolha uma opção:")
+        if _response == "1":
+            _search_scrapper()
+        elif _response == "2":
+            break
 
 
 if __name__ == '__main__':
